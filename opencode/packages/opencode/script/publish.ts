@@ -51,14 +51,14 @@ async function publish(name: string, cwd: string) {
     try {
       await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(cwd)
       return
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
+    } catch (e: any) {
+      const msg = [e?.message, e?.stderr, String(e)].join("\n")
       if (msg.includes("You cannot publish over the previously published versions")) {
         console.log(`${name} already published, skipping`)
         return
       }
       if (msg.includes("429") && attempt < maxRetries) {
-        const delay = attempt * 30
+        const delay = attempt * 60
         console.log(`${name} rate limited, retrying in ${delay}s (attempt ${attempt}/${maxRetries})`)
         await Bun.sleep(delay * 1000)
         continue
