@@ -1,0 +1,37 @@
+[data-component="logo-mark"] {
+  width: 16px;
+  aspect-ratio: 4/5;
+}
+
+/* Animated splash: orbital rotation and glow effects */
+.logo-splash-animated .splash-orbit-1 {
+  animation: orbit-spin 80s linear infinite;
+}
+
+.logo-splash-animated .splash-orbit-2 {
+  animation: orbit-spin 80s linear infinite reverse;
+}
+
+.logo-splash-animated .splash-core {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.logo-splash-animated .splash-glow-bg {
+  animation: radial-glow 4s ease-in-out infinite;
+}
+
+.logo-splash-animated .splash-star {
+  animation: twinkle 4s ease-in-out infinite;
+}
+
+.logo-splash-animated .splash-star-1 {
+  animation-delay: 0s;
+}
+
+.logo-splash-animated .splash-star-2 {
+  animation-delay: 1.3s;
+}
+
+.logo-splash-animated .splash-star-3 {
+  animation-delay: 2.6s;
+}

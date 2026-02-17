@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nebula X Asset Generator</title>
+    <style>
+        :root {
+            --deep-space: #0B0D17;
+            --space-navy: #111827;
+            --nebula-purple: #7C3AED;
+            --cosmic-cyan: #06B6D4;
+            --stellar-gold: #F59E0B;
+            --starlight-white: #F1F5F9;
+        }
+
+        body {
+            background-color: #333;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        .asset-container {
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            /* Reset box-sizing */
+            box-sizing: border-box;
+        }
+
+        /* Shared Space Background */
+        .space-bg {
+            background-color: var(--deep-space);
+            background-image:
+                radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.2) 0%, transparent 60%),
+                radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.2) 0%, transparent 40%),
+                radial-gradient(1px 1px at 10% 10%, white 100%, transparent),
+                radial-gradient(1px 1px at 20% 20%, white 100%, transparent),
+                radial-gradient(2px 2px at 30% 30%, rgba(255, 255, 255, 0.7) 100%, transparent),
+                radial-gradient(1px 1px at 40% 40%, white 100%, transparent),
+                radial-gradient(1px 1px at 50% 50%, white 100%, transparent),
+                radial-gradient(2px 2px at 60% 60%, rgba(255, 255, 255, 0.6) 100%, transparent),
+                radial-gradient(1px 1px at 70% 70%, white 100%, transparent),
+                radial-gradient(1px 1px at 80% 80%, white 100%, transparent),
+                radial-gradient(1px 1px at 90% 90%, white 100%, transparent);
+            background-size: 100% 100%, 100% 100%, 500px 500px, 400px 400px, 300px 300px, 600px 600px, 350px 350px, 450px 450px, 550px 550px, 250px 250px, 150px 150px;
+        }
+
+        /* 1. Master Icon (1024x1024) */
+        #master-icon {
+            width: 1024px;
+            height: 1024px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #master-icon img {
+            width: 700px;
+            height: 700px;
+            filter: drop-shadow(0 0 50px rgba(124, 58, 237, 0.8)) drop-shadow(0 0 100px rgba(6, 182, 212, 0.5));
+        }
+
+        /* 2. NSIS Header (150x57) */
+        #nsis-header {
+            width: 150px;
+            height: 57px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding-left: 10px;
+        }
+
+        #nsis-header img {
+            height: 40px;
+            width: auto;
+        }
+
+        /* 3. NSIS Sidebar (164x314) */
+        #nsis-sidebar {
+            width: 164px;
+            height: 314px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: start;
+            padding-top: 40px;
+        }
+
+        #nsis-sidebar img {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+
+        .nsis-title {
+            color: var(--starlight-white);
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        /* 4. OG Image (1200x630) */
+        #og-image {
+            width: 1200px;
+            height: 630px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--deep-space);
+            /* Ensure sold bg */
+        }
+
+        #og-image img {
+            width: 800px;
+            height: auto;
+            filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.5));
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 1. Master Icon -->
+    <div id="master-icon" class="asset-container space-bg">
+        <img src="nebula-x-assets/nebula-x-splash.svg" alt="Icon">
+    </div>
+
+    <!-- 2. NSIS Header -->
+    <div id="nsis-header" class="asset-container space-bg">
+        <img src="nebula-x-assets/nebula-x-mark.svg" alt="Icon">
+    </div>
+
+    <!-- 3. NSIS Sidebar -->
+    <div id="nsis-sidebar" class="asset-container space-bg">
+        <img src="nebula-x-assets/nebula-x-mark.svg" alt="Icon">
+        <div class="nsis-title">Nebula X</div>
+    </div>
+
+    <!-- 4. OG Image -->
+    <div id="og-image" class="asset-container space-bg">
+        <img src="nebula-x-assets/nebula-x-logo-ornate-dark.svg" alt="Logo">
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,51 @@
+# Environment & Secrets
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+ts-dist/
+target/
+a.out
+*.bun-build
+
+# IDE & Editor
+.idea/
+.vscode/
+.codex/
+*.swp
+*~
+Session.vim
+
+# Turbo
+.turbo/
+
+# SST
+.sst/
+
+# Worktrees
+.worktrees/
+
+# Playground & temp
+playground/
+tmp/
+logs/
+
+# Serena
+**/.serena
+.serena/
+
+# Scripts & dev files
+.scripts/
+.direnv/
+opencode-dev
+opencode.json
+refs/
+/result
