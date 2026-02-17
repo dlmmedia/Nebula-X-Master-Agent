@@ -92,7 +92,7 @@ jobs:
         settings:
           - host: macos-latest
             target: aarch64-apple-darwin
-          - host: macos-13
+          - host: macos-latest
             target: x86_64-apple-darwin
           - host: windows-latest
             target: x86_64-pc-windows-msvc
@@ -161,14 +161,14 @@ jobs:
         timeout-minutes: 60
         with:
           projectPath: opencode/packages/desktop
-          uploadWorkflowArtifacts: true
+          includeRelease: true
+          includeUpdaterJson: true
           tauriScript: ${{ (runner.os == 'Linux' && 'cargo tauri') || '' }}
           args: --target ${{ matrix.settings.target }} --config ./src-tauri/tauri.prod.conf.json --verbose
           updaterJsonPreferNsis: true
           releaseId: ${{ needs.version.outputs.release }}
           tagName: ${{ needs.version.outputs.tag }}
           releaseDraft: true
-          releaseAssetNamePattern: nebula-x-desktop-[platform]-[arch][ext]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: true
