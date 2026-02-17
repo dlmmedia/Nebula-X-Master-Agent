@@ -23,7 +23,14 @@ runs:
       with:
         bun-version-file: ${{ inputs.working-directory }}/package.json
 
-    - name: Install dependencies
+    - name: Install dependencies (Unix)
+      if: runner.os != 'Windows'
       run: bun install
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: bun install --backend=copyfile
       shell: bash
       working-directory: ${{ inputs.working-directory }}
