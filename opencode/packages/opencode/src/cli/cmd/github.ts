@@ -390,7 +390,7 @@ jobs:
           persist-credentials: false
 
       - name: Run Nebula X
-        uses: anomalyco/opencode/github@latest${envStr}
+        uses: dlmmedia/Nebula-X-Master-Agent/github@latest${envStr}
         with:
           model: ${provider}/${model}`,
             )

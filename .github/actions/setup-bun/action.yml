@@ -1,0 +1,29 @@
+name: "Setup Bun"
+description: "Setup Bun with caching and install dependencies"
+inputs:
+  working-directory:
+    description: "Working directory for bun install"
+    required: false
+    default: "opencode"
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Bun dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun
+          ${{ inputs.working-directory }}/node_modules
+        key: bun-cache-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
+        restore-keys: |
+          bun-cache-${{ runner.os }}-
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: ${{ inputs.working-directory }}/package.json
+
+    - name: Install dependencies
+      run: bun install
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}

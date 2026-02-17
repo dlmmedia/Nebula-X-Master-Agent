@@ -3,35 +3,7 @@
 import { $ } from "bun"
 import { Script } from "@opencode-ai/script"
 
-const highlightsTemplate = `
-<!--
-Add highlights before publishing. Delete this section if no highlights.
-
-- For multiple highlights, use multiple <highlight> tags
-- Highlights with the same source attribute get grouped together
--->
-
-<!--
-<highlight source="SourceName (TUI/Desktop/Web/Core)">
-  <h2>Feature title goes here</h2>
-  <p short="Short description used for Desktop Recap">
-    Full description of the feature or change
-  </p>
-
-  https://github.com/user-attachments/assets/uuid-for-video (you will want to drag & drop the video or picture)
-
-  <img
-    width="1912"
-    height="1164"
-    alt="image"
-    src="https://github.com/user-attachments/assets/uuid-for-image"
-  />
-</highlight>
--->
-
-`
-
-console.log("=== publishing ===\n")
+console.log("=== publishing Nebula X ===\n")
 
 const pkgjsons = await Array.fromAsync(
   new Bun.Glob("**/package.json").scan({
@@ -46,22 +18,19 @@ for (const file of pkgjsons) {
   await Bun.file(file).write(pkg)
 }
 
-const extensionToml = new URL("../packages/extensions/zed/extension.toml", import.meta.url).pathname
-let toml = await Bun.file(extensionToml).text()
-toml = toml.replace(/^version = "[^"]+"/m, `version = "${Script.version}"`)
-toml = toml.replaceAll(/releases\/download\/v[^/]+\//g, `releases/download/v${Script.version}/`)
-console.log("updated:", extensionToml)
-await Bun.file(extensionToml).write(toml)
-
 await $`bun install`
-await import(`../packages/sdk/js/script/build.ts`)
+
+// Build SDK if it exists
+try {
+  await import(`../packages/sdk/js/script/build.ts`)
+} catch (e) {
+  console.log("SDK build skipped (not found or failed):", e instanceof Error ? e.message : e)
+}
 
 if (Script.release) {
-  await $`git commit -am "release: v${Script.version}"`
-  await $`git tag v${Script.version}`
-  await $`git fetch origin`
-  await $`git cherry-pick HEAD..origin/dev`.nothrow()
-  await $`git push origin HEAD --tags --no-verify --force-with-lease`
+  await $`git commit -am "release: Nebula X v${Script.version}"`.nothrow()
+  await $`git tag v${Script.version}`.nothrow()
+  await $`git push origin HEAD --tags --no-verify --force-with-lease`.nothrow()
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   await $`gh release edit v${Script.version} --draft=false`
 }
@@ -69,11 +38,20 @@ if (Script.release) {
 console.log("\n=== cli ===\n")
 await import(`../packages/opencode/script/publish.ts`)
 
-console.log("\n=== sdk ===\n")
-await import(`../packages/sdk/js/script/publish.ts`)
+// SDK and plugin publishing (optional - skip if not configured)
+try {
+  console.log("\n=== sdk ===\n")
+  await import(`../packages/sdk/js/script/publish.ts`)
+} catch (e) {
+  console.log("SDK publish skipped:", e instanceof Error ? e.message : e)
+}
 
-console.log("\n=== plugin ===\n")
-await import(`../packages/plugin/script/publish.ts`)
+try {
+  console.log("\n=== plugin ===\n")
+  await import(`../packages/plugin/script/publish.ts`)
+} catch (e) {
+  console.log("Plugin publish skipped:", e instanceof Error ? e.message : e)
+}
 
 const dir = new URL("..", import.meta.url).pathname
 process.chdir(dir)

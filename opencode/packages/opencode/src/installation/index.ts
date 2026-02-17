@@ -121,8 +121,8 @@ export namespace Installation {
   )
 
   async function getBrewFormula() {
-    const tapFormula = await $`brew list --formula anomalyco/tap/opencode`.throws(false).quiet().text()
-    if (tapFormula.includes("opencode")) return "anomalyco/tap/opencode"
+    const tapFormula = await $`brew list --formula dlmmedia/tap/nebula-x`.throws(false).quiet().text()
+    if (tapFormula.includes("nebula-x")) return "dlmmedia/tap/nebula-x"
     const coreFormula = await $`brew list --formula opencode`.throws(false).quiet().text()
     if (coreFormula.includes("opencode")) return "opencode"
     return "opencode"
@@ -150,7 +150,7 @@ export namespace Installation {
         const formula = await getBrewFormula()
         if (formula.includes("/")) {
           cmd =
-            $`brew tap anomalyco/tap && cd "$(brew --repo anomalyco/tap)" && git pull --ff-only && brew upgrade ${formula}`.env(
+            $`brew tap dlmmedia/tap && cd "$(brew --repo dlmmedia/tap)" && git pull --ff-only && brew upgrade ${formula}`.env(
               {
                 HOMEBREW_NO_AUTO_UPDATE: "1",
                 ...process.env,
@@ -251,7 +251,7 @@ export namespace Installation {
         .then((data: any) => data.version)
     }
 
-    return fetch("https://api.github.com/repos/anomalyco/opencode/releases/latest")
+    return fetch("https://api.github.com/repos/dlmmedia/Nebula-X-Master-Agent/releases/latest")
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText)
         return res.json()

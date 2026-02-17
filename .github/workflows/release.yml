@@ -1,0 +1,220 @@
+name: release
+run-name: "${{ format('release {0}', inputs.bump || 'patch') }}"
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - beta
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump major, minor, or patch"
+        required: false
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      version:
+        description: "Override version (optional)"
+        required: false
+        type: string
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version || inputs.bump }}
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun
+
+      - id: version
+        run: |
+          cd opencode
+          ./script/version.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENCODE_BUMP: ${{ inputs.bump }}
+          OPENCODE_VERSION: ${{ inputs.version }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      tag: ${{ steps.version.outputs.tag }}
+
+  build-cli:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Build
+        id: build
+        run: |
+          cd opencode
+          ./packages/opencode/script/build.ts
+        env:
+          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+          OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencode-cli
+          path: opencode/packages/opencode/dist
+
+    outputs:
+      version: ${{ needs.version.outputs.version }}
+
+  build-tauri:
+    needs:
+      - build-cli
+      - version
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: macos-latest
+            target: aarch64-apple-darwin
+          - host: macos-13
+            target: x86_64-apple-darwin
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Cache apt packages
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-cache
+          key: ${{ runner.os }}-${{ matrix.settings.target }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.settings.target }}-apt-
+
+      - name: Install dependencies (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p ~/apt-cache && chmod -R a+rw ~/apt-cache
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends -o dir::cache::archives="$HOME/apt-cache" \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo chmod -R a+rw ~/apt-cache
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: opencode/packages/desktop/src-tauri
+          shared-key: ${{ matrix.settings.target }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencode-cli
+          path: opencode/packages/opencode/dist
+
+      - name: Prepare sidecar
+        run: |
+          cd opencode/packages/desktop
+          bun ./scripts/prepare.ts
+        env:
+          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+          RUST_TARGET: ${{ matrix.settings.target }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+
+      - name: Install tauri-cli (Linux AppImage fix)
+        if: runner.os == 'Linux'
+        run: |
+          cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+          echo "Installed tauri-cli version:"
+          cargo tauri --version
+
+      - name: Build and upload artifacts
+        uses: tauri-apps/tauri-action@v0
+        timeout-minutes: 60
+        with:
+          projectPath: opencode/packages/desktop
+          uploadWorkflowArtifacts: true
+          tauriScript: ${{ (runner.os == 'Linux' && 'cargo tauri') || '' }}
+          args: --target ${{ matrix.settings.target }} --config ./src-tauri/tauri.prod.conf.json --verbose
+          updaterJsonPreferNsis: true
+          releaseId: ${{ needs.version.outputs.release }}
+          tagName: ${{ needs.version.outputs.tag }}
+          releaseDraft: true
+          releaseAssetNamePattern: nebula-x-desktop-[platform]-[arch][ext]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: true
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  publish:
+    needs:
+      - version
+      - build-cli
+      - build-tauri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencode-cli
+          path: opencode/packages/opencode/dist
+
+      - name: Publish
+        run: |
+          cd opencode
+          ./script/publish.ts
+        env:
+          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+          OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: false

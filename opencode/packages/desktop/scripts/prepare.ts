@@ -11,9 +11,18 @@ console.log(`Updated package.json version to ${Script.version}`)
 
 const sidecarConfig = getCurrentSidecar()
 
-const dir = "src-tauri/target/opencode-binaries"
+// CLI artifacts are downloaded by the GitHub Actions workflow into ../opencode/dist
+// Try the workflow artifact path first, then fall back to gh run download
+const artifactPath = `../opencode/dist/${sidecarConfig.ocBinary}/bin/opencode`
+const artifactFile = Bun.file(windowsify(artifactPath))
 
-await $`mkdir -p ${dir}`
-await $`gh run download ${Bun.env.GITHUB_RUN_ID} -n opencode-cli`.cwd(dir)
-
-await copyBinaryToSidecarFolder(windowsify(`${dir}/${sidecarConfig.ocBinary}/bin/opencode`))
+if (await artifactFile.exists()) {
+  console.log(`Found CLI artifact at ${artifactPath}`)
+  await copyBinaryToSidecarFolder(windowsify(artifactPath))
+} else {
+  console.log(`CLI artifact not found at ${artifactPath}, downloading from workflow run...`)
+  const dir = "src-tauri/target/opencode-binaries"
+  await $`mkdir -p ${dir}`
+  await $`gh run download ${Bun.env.GITHUB_RUN_ID} -n opencode-cli`.cwd(dir)
+  await copyBinaryToSidecarFolder(windowsify(`${dir}/${sidecarConfig.ocBinary}/bin/opencode`))
+}

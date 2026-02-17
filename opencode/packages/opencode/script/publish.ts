@@ -15,17 +15,23 @@ for (const filepath of new Bun.Glob("*/package.json").scanSync({ cwd: "./dist" }
 console.log("binaries", binaries)
 const version = Object.values(binaries)[0]
 
-await $`mkdir -p ./dist/${pkg.name}`
-await $`cp -r ./bin ./dist/${pkg.name}/bin`
-await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
-await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
+await $`mkdir -p ./dist/nebula-x`
+await $`cp -r ./bin ./dist/nebula-x/bin`
+await $`cp ./script/postinstall.mjs ./dist/nebula-x/postinstall.mjs`
 
-await Bun.file(`./dist/${pkg.name}/package.json`).write(
+// Copy LICENSE if it exists
+try {
+  await Bun.file(`./dist/nebula-x/LICENSE`).write(await Bun.file("../../LICENSE").text())
+} catch {
+  console.log("LICENSE file not found, skipping")
+}
+
+await Bun.file(`./dist/nebula-x/package.json`).write(
   JSON.stringify(
     {
-      name: pkg.name + "-ai",
+      name: "nebula-x",
       bin: {
-        [pkg.name]: `./bin/${pkg.name}`,
+        "nebula-x": `./bin/${pkg.name}`,
       },
       scripts: {
         postinstall: "bun ./postinstall.mjs || node ./postinstall.mjs",
@@ -47,135 +53,94 @@ const tasks = Object.entries(binaries).map(async ([name]) => {
   await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${name}`)
 })
 await Promise.all(tasks)
-await $`cd ./dist/${pkg.name} && bun pm pack && npm publish *.tgz --access public --tag ${Script.channel}`
+await $`cd ./dist/nebula-x && bun pm pack && npm publish *.tgz --access public --tag ${Script.channel}`
 
-const image = "ghcr.io/anomalyco/opencode"
-const platforms = "linux/amd64,linux/arm64"
+// Docker image
+const image = "ghcr.io/dlmmedia/nebula-x"
+const platforms = "linux/amd64"
 const tags = [`${image}:${version}`, `${image}:${Script.channel}`]
 const tagFlags = tags.flatMap((t) => ["-t", t])
-await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`
+try {
+  await $`docker buildx build --platform ${platforms} ${tagFlags} --push .`
+} catch (e) {
+  console.log("Docker build/push failed (may not have Dockerfile or docker configured):", e instanceof Error ? e.message : e)
+}
 
-// registries
+// Package registries (only for non-preview releases)
 if (!Script.preview) {
-  // Calculate SHA values
-  const arm64Sha = await $`sha256sum ./dist/opencode-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
-  const x64Sha = await $`sha256sum ./dist/opencode-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim())
-  const macX64Sha = await $`sha256sum ./dist/opencode-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
-  const macArm64Sha = await $`sha256sum ./dist/opencode-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim())
-
-  const [pkgver, _subver = ""] = Script.version.split(/(-.*)/, 2)
-
-  // arch
-  const binaryPkgbuild = [
-    "# Maintainer: dax",
-    "# Maintainer: adam",
-    "",
-    "pkgname='opencode-bin'",
-    `pkgver=${pkgver}`,
-    `_subver=${_subver}`,
-    "options=('!debug' '!strip')",
-    "pkgrel=1",
-    "pkgdesc='The AI coding agent built for the terminal.'",
-    "url='https://github.com/anomalyco/opencode'",
-    "arch=('aarch64' 'x86_64')",
-    "license=('MIT')",
-    "provides=('opencode')",
-    "conflicts=('opencode')",
-    "depends=('ripgrep')",
-    "",
-    `source_aarch64=("\${pkgname}_\${pkgver}_aarch64.tar.gz::https://github.com/anomalyco/opencode/releases/download/v\${pkgver}\${_subver}/opencode-linux-arm64.tar.gz")`,
-    `sha256sums_aarch64=('${arm64Sha}')`,
-
-    `source_x86_64=("\${pkgname}_\${pkgver}_x86_64.tar.gz::https://github.com/anomalyco/opencode/releases/download/v\${pkgver}\${_subver}/opencode-linux-x64.tar.gz")`,
-    `sha256sums_x86_64=('${x64Sha}')`,
-    "",
-    "package() {",
-    '  install -Dm755 ./opencode "${pkgdir}/usr/bin/opencode"',
-    "}",
-    "",
-  ].join("\n")
-
-  for (const [pkg, pkgbuild] of [["opencode-bin", binaryPkgbuild]]) {
-    for (let i = 0; i < 30; i++) {
-      try {
-        await $`rm -rf ./dist/aur-${pkg}`
-        await $`git clone ssh://aur@aur.archlinux.org/${pkg}.git ./dist/aur-${pkg}`
-        await $`cd ./dist/aur-${pkg} && git checkout master`
-        await Bun.file(`./dist/aur-${pkg}/PKGBUILD`).write(pkgbuild)
-        await $`cd ./dist/aur-${pkg} && makepkg --printsrcinfo > .SRCINFO`
-        await $`cd ./dist/aur-${pkg} && git add PKGBUILD .SRCINFO`
-        await $`cd ./dist/aur-${pkg} && git commit -m "Update to v${Script.version}"`
-        await $`cd ./dist/aur-${pkg} && git push`
-        break
-      } catch (e) {
-        continue
-      }
-    }
-  }
+  // Calculate SHA values for release assets
+  const arm64Sha = await $`sha256sum ./dist/opencode-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const x64Sha = await $`sha256sum ./dist/opencode-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const macX64Sha = await $`sha256sum ./dist/opencode-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const macArm64Sha = await $`sha256sum ./dist/opencode-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
 
   // Homebrew formula
-  const homebrewFormula = [
-    "# typed: false",
-    "# frozen_string_literal: true",
-    "",
-    "# This file was generated by GoReleaser. DO NOT EDIT.",
-    "class Opencode < Formula",
-    `  desc "The AI coding agent built for the terminal."`,
-    `  homepage "https://github.com/anomalyco/opencode"`,
-    `  version "${Script.version.split("-")[0]}"`,
-    "",
-    `  depends_on "ripgrep"`,
-    "",
-    "  on_macos do",
-    "    if Hardware::CPU.intel?",
-    `      url "https://github.com/anomalyco/opencode/releases/download/v${Script.version}/opencode-darwin-x64.zip"`,
-    `      sha256 "${macX64Sha}"`,
-    "",
-    "      def install",
-    '        bin.install "opencode"',
-    "      end",
-    "    end",
-    "    if Hardware::CPU.arm?",
-    `      url "https://github.com/anomalyco/opencode/releases/download/v${Script.version}/opencode-darwin-arm64.zip"`,
-    `      sha256 "${macArm64Sha}"`,
-    "",
-    "      def install",
-    '        bin.install "opencode"',
-    "      end",
-    "    end",
-    "  end",
-    "",
-    "  on_linux do",
-    "    if Hardware::CPU.intel? and Hardware::CPU.is_64_bit?",
-    `      url "https://github.com/anomalyco/opencode/releases/download/v${Script.version}/opencode-linux-x64.tar.gz"`,
-    `      sha256 "${x64Sha}"`,
-    "      def install",
-    '        bin.install "opencode"',
-    "      end",
-    "    end",
-    "    if Hardware::CPU.arm? and Hardware::CPU.is_64_bit?",
-    `      url "https://github.com/anomalyco/opencode/releases/download/v${Script.version}/opencode-linux-arm64.tar.gz"`,
-    `      sha256 "${arm64Sha}"`,
-    "      def install",
-    '        bin.install "opencode"',
-    "      end",
-    "    end",
-    "  end",
-    "end",
-    "",
-    "",
-  ].join("\n")
+  if (macX64Sha !== "SKIP" && macArm64Sha !== "SKIP") {
+    const homebrewFormula = [
+      "# typed: false",
+      "# frozen_string_literal: true",
+      "",
+      "class NebulX < Formula",
+      `  desc "Nebula X - AI Coding Agent by DLM Media"`,
+      `  homepage "https://github.com/dlmmedia/Nebula-X-Master-Agent"`,
+      `  version "${Script.version.split("-")[0]}"`,
+      "",
+      "  on_macos do",
+      "    if Hardware::CPU.intel?",
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-darwin-x64.zip"`,
+      `      sha256 "${macX64Sha}"`,
+      "",
+      "      def install",
+      '        bin.install "opencode" => "nebula-x"',
+      "      end",
+      "    end",
+      "    if Hardware::CPU.arm?",
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-darwin-arm64.zip"`,
+      `      sha256 "${macArm64Sha}"`,
+      "",
+      "      def install",
+      '        bin.install "opencode" => "nebula-x"',
+      "      end",
+      "    end",
+      "  end",
+      "",
+      "  on_linux do",
+      "    if Hardware::CPU.intel? and Hardware::CPU.is_64_bit?",
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-linux-x64.tar.gz"`,
+      `      sha256 "${x64Sha}"`,
+      "      def install",
+      '        bin.install "opencode" => "nebula-x"',
+      "      end",
+      "    end",
+      "    if Hardware::CPU.arm? and Hardware::CPU.is_64_bit?",
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-linux-arm64.tar.gz"`,
+      `      sha256 "${arm64Sha}"`,
+      "      def install",
+      '        bin.install "opencode" => "nebula-x"',
+      "      end",
+      "    end",
+      "  end",
+      "end",
+      "",
+      "",
+    ].join("\n")
 
-  const token = process.env.GITHUB_TOKEN
-  if (!token) {
-    console.error("GITHUB_TOKEN is required to update homebrew tap")
-    process.exit(1)
+    const token = process.env.GITHUB_TOKEN
+    if (token) {
+      try {
+        const tap = `https://x-access-token:${token}@github.com/dlmmedia/homebrew-tap.git`
+        await $`rm -rf ./dist/homebrew-tap`
+        await $`git clone ${tap} ./dist/homebrew-tap`
+        await Bun.file("./dist/homebrew-tap/nebula-x.rb").write(homebrewFormula)
+        await $`cd ./dist/homebrew-tap && git add nebula-x.rb`
+        await $`cd ./dist/homebrew-tap && git commit -m "Update Nebula X to v${Script.version}"`
+        await $`cd ./dist/homebrew-tap && git push`
+        console.log("Homebrew tap updated successfully")
+      } catch (e) {
+        console.log("Homebrew tap update failed:", e instanceof Error ? e.message : e)
+      }
+    } else {
+      console.log("GITHUB_TOKEN not set, skipping Homebrew tap update")
+    }
   }
-  const tap = `https://x-access-token:${token}@github.com/anomalyco/homebrew-tap.git`
-  await $`rm -rf ./dist/homebrew-tap`
-  await $`git clone ${tap} ./dist/homebrew-tap`
-  await Bun.file("./dist/homebrew-tap/opencode.rb").write(homebrewFormula)
-  await $`cd ./dist/homebrew-tap && git add opencode.rb`
-  await $`cd ./dist/homebrew-tap && git commit -m "Update to v${Script.version}"`
-  await $`cd ./dist/homebrew-tap && git push`
 }
