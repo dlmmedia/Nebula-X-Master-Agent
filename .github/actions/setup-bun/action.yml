@@ -14,14 +14,23 @@ runs:
         path: |
           ~/.bun
           ${{ inputs.working-directory }}/node_modules
-        key: bun-cache-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
+        key: bun-cache-v2-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
         restore-keys: |
-          bun-cache-${{ runner.os }}-
+          bun-cache-v2-${{ runner.os }}-
 
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       with:
         bun-version-file: ${{ inputs.working-directory }}/package.json
+
+    - name: Clean stale Bun module cache (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        if [ -d "${{ inputs.working-directory }}/node_modules/.bun" ]; then
+          echo "Removing stale .bun directory for clean install"
+          rm -rf "${{ inputs.working-directory }}/node_modules/.bun"
+        fi
+      shell: bash
 
     - name: Install dependencies (Unix)
       if: runner.os != 'Windows'
