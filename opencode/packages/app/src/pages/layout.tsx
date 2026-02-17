@@ -949,6 +949,13 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openSettings(),
       },
       {
+        id: "orchestration.open",
+        title: "Open Orchestration",
+        category: language.t("command.category.view"),
+        keybind: "mod+shift+o",
+        onSelect: () => navigate("/orchestration"),
+      },
+      {
         id: "session.previous",
         title: language.t("command.session.previous"),
         category: language.t("command.category.session"),
@@ -1971,6 +1978,7 @@ export default function Layout(props: ParentProps) {
               settingsKeybind={() => command.keybind("settings.open")}
               onOpenSettings={openSettings}
               orchestrationLabel={() => "Orchestration"}
+              orchestrationKeybind={() => command.keybind("orchestration.open")}
               onOpenOrchestration={() => navigate("/orchestration")}
               helpLabel={() => language.t("sidebar.help")}
               onOpenHelp={() => platform.openLink("https://dlmworld.com")}
@@ -2038,6 +2046,7 @@ export default function Layout(props: ParentProps) {
               settingsKeybind={() => command.keybind("settings.open")}
               onOpenSettings={openSettings}
               orchestrationLabel={() => "Orchestration"}
+              orchestrationKeybind={() => command.keybind("orchestration.open")}
               onOpenOrchestration={() => navigate("/orchestration")}
               helpLabel={() => language.t("sidebar.help")}
               onOpenHelp={() => platform.openLink("https://dlmworld.com")}

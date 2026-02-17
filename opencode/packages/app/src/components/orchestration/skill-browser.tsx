@@ -1,5 +1,9 @@
 import { createSignal, createResource, For, Show, createMemo } from "solid-js"
+import { useNavigate } from "@solidjs/router"
+import { base64Encode } from "@opencode-ai/util/encode"
 import { useOrchestration } from "@/context/orchestration"
+import { useServer } from "@/context/server"
+import { setSessionHandoff } from "@/pages/session"
 import type { SkillEntry } from "@/lib/orchestration-client"
 
 const CATEGORIES = [
@@ -27,6 +31,8 @@ const KNOWN_REPOS = [
 
 export default function SkillBrowser() {
   const client = useOrchestration()
+  const navigate = useNavigate()
+  const server = useServer()
   const [activeCategory, setActiveCategory] = createSignal("all")
   const [searchQuery, setSearchQuery] = createSignal("")
   const [viewMode, setViewMode] = createSignal<"grid" | "list">("grid")
@@ -141,6 +147,22 @@ export default function SkillBrowser() {
     refetch()
   }
 
+  function useWithAgent(skill: SkillEntry) {
+    const lastProject = server.projects.last()
+    if (!lastProject) {
+      alert("Please open a project first before using a skill with the agent.")
+      return
+    }
+    const dir = base64Encode(lastProject)
+    const promptText = `Use the following skill instructions to complete the task:\n\n## Skill: ${skill.name}\n\n${skill.content}`
+    setSessionHandoff(dir, {
+      prompt: promptText,
+      source: "orchestration",
+      autoSubmit: true,
+    })
+    navigate(`/${dir}/session`)
+  }
+
   return (
     <div class="flex h-full">
       {/* Category Sidebar */}
@@ -236,14 +258,29 @@ export default function SkillBrowser() {
             </div>
           </Show>
 
-          <Show when={!skills.loading && skills()?.items.length === 0}>
+          <Show when={skills.error}>
+            <div class="flex flex-col items-center justify-center h-32 gap-3">
+              <p class="text-sm text-red-400">Failed to load skills</p>
+              <p class="text-xs text-color-dimmed max-w-sm text-center">
+                {skills.error?.message || "Could not connect to the orchestration API."}
+              </p>
+              <button
+                class="px-3 py-1.5 text-xs bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors"
+                onClick={() => refetch()}
+              >
+                Retry
+              </button>
+            </div>
+          </Show>
+
+          <Show when={!skills.loading && !skills.error && skills()?.items.length === 0}>
             <div class="text-center py-12">
               <p class="text-color-dimmed text-sm">No skills found</p>
               <p class="text-color-dimmed text-xs mt-1">Import from GitHub or generate with Gemini</p>
             </div>
           </Show>
 
-          <Show when={!skills.loading && (skills()?.items.length ?? 0) > 0}>
+          <Show when={!skills.loading && !skills.error && (skills()?.items.length ?? 0) > 0}>
             <div
               class={
                 viewMode() === "grid"
@@ -259,6 +296,7 @@ export default function SkillBrowser() {
                     onSelect={() => setSelectedSkill(skill)}
                     onToggle={() => handleToggle(skill)}
                     onDelete={() => handleDelete(skill)}
+                    onUseWithAgent={() => useWithAgent(skill)}
                   />
                 )}
               </For>
@@ -295,6 +333,17 @@ export default function SkillBrowser() {
                   </For>
                 </div>
               </Show>
+              <div class="border-t border-border-base pt-3 mb-3">
+                <button
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  onClick={() => useWithAgent(skill())}
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Use with Agent
+                </button>
+              </div>
               <div class="border-t border-border-base pt-3">
                 <p class="text-xs font-medium text-color-dimmed uppercase mb-2">Content</p>
                 <pre class="text-xs text-color-secondary bg-background-base rounded-lg p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
@@ -528,6 +577,7 @@ function SkillCard(props: {
   onSelect: () => void
   onToggle: () => void
   onDelete: () => void
+  onUseWithAgent: () => void
 }) {
   const sourceColor = () => {
     switch (props.skill.source) {
@@ -552,6 +602,12 @@ function SkillCard(props: {
           <p class="text-xs text-color-dimmed truncate">{props.skill.description}</p>
         </div>
         <span class="text-xs text-color-dimmed capitalize">{props.skill.category}</span>
+        <button
+          class="px-2 py-1 text-xs bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors"
+          onClick={(e) => { e.stopPropagation(); props.onUseWithAgent() }}
+        >
+          Use
+        </button>
         <button
           class={`w-8 h-4 rounded-full relative transition-colors ${props.skill.enabled ? "bg-blue-500" : "bg-gray-600"}`}
           onClick={(e) => { e.stopPropagation(); props.onToggle() }}
@@ -590,7 +646,13 @@ function SkillCard(props: {
       <div class="flex items-center gap-2">
         <span class="text-[10px] px-2 py-0.5 rounded-full bg-background-surface text-color-dimmed capitalize">{props.skill.category}</span>
         <span class={`text-[10px] px-2 py-0.5 rounded-full ${sourceColor()}`}>{props.skill.source}</span>
-        <span class="text-[10px] text-color-dimmed ml-auto">v{props.skill.version}</span>
+        <button
+          class="opacity-0 group-hover:opacity-100 ml-auto px-2 py-0.5 text-[10px] bg-blue-500/10 text-blue-400 rounded-full hover:bg-blue-500/20 transition-all"
+          onClick={(e) => { e.stopPropagation(); props.onUseWithAgent() }}
+        >
+          Use with Agent
+        </button>
+        <span class="text-[10px] text-color-dimmed group-hover:hidden ml-auto">v{props.skill.version}</span>
       </div>
     </div>
   )

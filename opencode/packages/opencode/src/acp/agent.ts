@@ -507,8 +507,8 @@ export namespace ACP {
       log.info("initialize", { protocolVersion: params.protocolVersion })
 
       const authMethod: AuthMethod = {
-        description: "Run `opencode auth login` in the terminal",
-        name: "Login with opencode",
+        description: "Run `nebula-x auth login` in the terminal",
+        name: "Login with Nebula X",
         id: "opencode-login",
       }
 
@@ -518,7 +518,7 @@ export namespace ACP {
           "terminal-auth": {
             command: "opencode",
             args: ["auth", "login"],
-            label: "OpenCode Login",
+            label: "Nebula X Login",
           },
         }
       }

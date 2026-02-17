@@ -85,9 +85,14 @@ export interface OrchestrationStatus {
   categories: Array<{ category: string; count: number }>
 }
 
-export function createOrchestrationClient(baseUrl: string, directory?: string) {
+export function createOrchestrationClient(
+  baseUrl: string,
+  directory?: string,
+  authHeaders?: Record<string, string>,
+) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...authHeaders,
   }
   if (directory) {
     headers["x-opencode-directory"] = directory
@@ -95,15 +100,32 @@ export function createOrchestrationClient(baseUrl: string, directory?: string) {
 
   async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = `${baseUrl}/orchestration${path}`
-    const res = await fetch(url, {
-      ...options,
-      headers: { ...headers, ...options?.headers },
-    })
+    let res: Response
+    try {
+      res = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...options?.headers },
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(
+        `Orchestration API network error: ${message}. Ensure the server is running at ${baseUrl}`,
+      )
+    }
     if (!res.ok) {
-      const text = await res.text()
+      let text: string
+      try {
+        text = await res.text()
+      } catch {
+        text = `HTTP ${res.status}`
+      }
       throw new Error(`Orchestration API error (${res.status}): ${text}`)
     }
-    return res.json()
+    try {
+      return await res.json() as T
+    } catch {
+      throw new Error(`Orchestration API error: Invalid JSON response from ${path}`)
+    }
   }
 
   return {
@@ -164,7 +186,11 @@ export function createOrchestrationClient(baseUrl: string, directory?: string) {
       update: (id: string, data: Record<string, any>) =>
         request<WorkflowEntry>(`/workflows/${id}`, { method: "PUT", body: JSON.stringify(data) }),
       delete: (id: string) => request<boolean>(`/workflows/${id}`, { method: "DELETE" }),
-      run: (id: string) => request<WorkflowRunEntry>(`/workflows/${id}/run`, { method: "POST" }),
+      run: (id: string, options?: { sendToAgent?: boolean }) =>
+        request<WorkflowRunEntry>(`/workflows/${id}/run`, {
+          method: "POST",
+          body: JSON.stringify(options ?? {}),
+        }),
       generate: (data: { name: string; description: string; steps?: string[] }) =>
         request<WorkflowEntry>("/workflows/generate", { method: "POST", body: JSON.stringify(data) }),
       templates: () => request<WorkflowTemplate[]>("/workflows/templates"),
@@ -225,6 +251,25 @@ export function createOrchestrationClient(baseUrl: string, directory?: string) {
       importExisting: () =>
         request<{ imported: number }>("/bridge/import-existing", { method: "POST" }),
     },
+
+    // Send to Agent
+    sendToAgent: (
+      prompt: string,
+      options?: {
+        sessionId?: string
+        agent?: string
+        model?: { providerID: string; modelID: string }
+      },
+    ) =>
+      request<{ sessionId: string; messageId: string }>("/send-to-agent", {
+        method: "POST",
+        body: JSON.stringify({
+          prompt,
+          sessionId: options?.sessionId,
+          agent: options?.agent,
+          model: options?.model,
+        }),
+      }),
 
     // Status
     status: () => request<OrchestrationStatus>("/status"),

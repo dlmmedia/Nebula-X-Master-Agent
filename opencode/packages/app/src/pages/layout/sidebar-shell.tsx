@@ -30,6 +30,7 @@ export const SidebarContent = (props: {
   settingsKeybind: Accessor<string | undefined>
   onOpenSettings: () => void
   orchestrationLabel?: Accessor<string>
+  orchestrationKeybind?: Accessor<string | undefined>
   onOpenOrchestration?: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
@@ -82,15 +83,16 @@ export const SidebarContent = (props: {
         </div>
         <div class="shrink-0 w-full pt-3 pb-3 flex flex-col items-center gap-2">
           <Show when={props.orchestrationLabel && props.onOpenOrchestration}>
-            <Tooltip placement={placement()} value={props.orchestrationLabel!()}>
+            <TooltipKeybind placement={placement()} title={props.orchestrationLabel!()} keybind={props.orchestrationKeybind?.() ?? ""}>
               <IconButton
-                icon="terminal"
+                icon="brain"
                 variant="ghost"
                 size="large"
                 onClick={props.onOpenOrchestration!}
                 aria-label={props.orchestrationLabel!()}
+                class="text-text-interactive-base"
               />
-            </Tooltip>
+            </TooltipKeybind>
           </Show>
           <TooltipKeybind placement={placement()} title={props.settingsLabel()} keybind={props.settingsKeybind() ?? ""}>
             <IconButton

@@ -13,7 +13,7 @@ export default function PrivacyPolicy() {
     <main data-page="legal">
       <Title>OpenCode | Privacy Policy</Title>
       <LocaleLinks path="/legal/privacy-policy" />
-      <Meta name="description" content="OpenCode privacy policy" />
+      <Meta name="description" content="Nebula X privacy policy" />
       <div data-component="container">
         <Header />
 

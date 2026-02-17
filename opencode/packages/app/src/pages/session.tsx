@@ -60,6 +60,8 @@ import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 type HandoffSession = {
   prompt: string
   files: Record<string, SelectedLineRange | null>
+  source?: "orchestration"
+  autoSubmit?: boolean
 }
 
 const HANDOFF_MAX = 40
@@ -83,6 +85,19 @@ const setSessionHandoff = (key: string, patch: Partial<HandoffSession>) => {
   const prev = handoff.session.get(key) ?? { prompt: "", files: {} }
   touch(handoff.session, key, { ...prev, ...patch })
 }
+
+const getSessionHandoff = (key: string): HandoffSession | undefined => {
+  return handoff.session.get(key)
+}
+
+const clearOrchestrationHandoff = (key: string) => {
+  const current = handoff.session.get(key)
+  if (current?.source === "orchestration") {
+    handoff.session.delete(key)
+  }
+}
+
+export { setSessionHandoff, getSessionHandoff, clearOrchestrationHandoff }
 
 export default function Page() {
   const layout = useLayout()
@@ -1476,7 +1491,65 @@ export default function Page() {
 
   createEffect(() => {
     if (!prompt.ready()) return
+    const existing = getSessionHandoff(sessionKey())
+    if (existing?.source === "orchestration") return
     setSessionHandoff(sessionKey(), { prompt: previewPrompt() })
+  })
+
+  createEffect(() => {
+    if (!prompt.ready()) return
+    const key = sessionKey()
+    const pending = getSessionHandoff(key)
+    if (!pending || pending.source !== "orchestration" || !pending.prompt) return
+
+    const text = pending.prompt
+    const shouldAutoSubmit = pending.autoSubmit === true
+    clearOrchestrationHandoff(key)
+
+    prompt.set(
+      [{ type: "text" as const, content: text, start: 0, end: text.length }],
+      text.length,
+    )
+
+    if (shouldAutoSubmit) {
+      setTimeout(() => {
+        const currentModel = local.model.current()
+        const currentAgent = local.agent.current()
+        if (!currentModel || !currentAgent) return
+
+        const createAndSend = async () => {
+          let sessionId = params.id
+          if (!sessionId) {
+            const created = await sdk.client.session.create().then((x) => x.data).catch(() => undefined)
+            if (!created) return
+            sessionId = created.id
+            navigate(`/${params.dir}/session/${sessionId}`)
+          }
+          const messageID = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+          await sdk.client.session.promptAsync({
+            sessionID: sessionId,
+            agent: currentAgent.name,
+            model: {
+              modelID: currentModel.id,
+              providerID: currentModel.provider.id,
+            },
+            messageID,
+            parts: [
+              {
+                id: `part_${Date.now()}`,
+                type: "text" as const,
+                text,
+              },
+            ],
+            variant: local.model.variant.current(),
+          })
+          prompt.reset()
+        }
+        void createAndSend().catch((err) => {
+          console.error("Orchestration auto-submit failed:", err)
+        })
+      }, 100)
+    }
   })
 
   createEffect(() => {

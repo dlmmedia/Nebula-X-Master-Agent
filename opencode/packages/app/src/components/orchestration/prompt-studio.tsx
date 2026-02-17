@@ -1,9 +1,15 @@
 import { createSignal, createResource, For, Show, createEffect } from "solid-js"
+import { useNavigate } from "@solidjs/router"
+import { base64Encode } from "@opencode-ai/util/encode"
 import { useOrchestration } from "@/context/orchestration"
+import { useServer } from "@/context/server"
+import { setSessionHandoff } from "@/pages/session"
 import type { PromptEntry, BuiltinTemplate } from "@/lib/orchestration-client"
 
 export default function PromptStudio() {
   const client = useOrchestration()
+  const navigate = useNavigate()
+  const server = useServer()
   const [activePrompt, setActivePrompt] = createSignal<PromptEntry | null>(null)
   const [editorContent, setEditorContent] = createSignal("")
   const [previewVars, setPreviewVars] = createSignal<Record<string, string>>({})
@@ -120,6 +126,26 @@ export default function PromptStudio() {
     setShowBuiltins(false)
   }
 
+  function sendToAgent() {
+    const lastProject = server.projects.last()
+    if (!lastProject) {
+      alert("Please open a project first before sending a prompt to the agent.")
+      return
+    }
+    const rendered = renderedPreview()
+    if (!rendered.trim()) {
+      alert("Please write or select a prompt first.")
+      return
+    }
+    const dir = base64Encode(lastProject)
+    setSessionHandoff(dir, {
+      prompt: rendered,
+      source: "orchestration",
+      autoSubmit: true,
+    })
+    navigate(`/${dir}/session`)
+  }
+
   return (
     <div class="flex h-full">
       {/* Prompt List */}
@@ -185,6 +211,12 @@ export default function PromptStudio() {
               <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
             </div>
           </Show>
+          <Show when={prompts.error}>
+            <div class="flex flex-col items-center py-4 gap-2">
+              <p class="text-xs text-red-400">Failed to load prompts</p>
+              <button class="text-[10px] text-blue-400 hover:underline" onClick={() => refetch()}>Retry</button>
+            </div>
+          </Show>
           <For each={prompts()}>
             {(prompt) => (
               <div
@@ -220,9 +252,19 @@ export default function PromptStudio() {
           <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border-base">
             <span class="text-xs font-medium text-color-dimmed uppercase">Editor</span>
             <div class="flex gap-2">
+              <button
+                class="flex items-center gap-1.5 px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                onClick={sendToAgent}
+                disabled={!editorContent().trim()}
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Send to Agent
+              </button>
               <Show when={activePrompt()}>
                 <button
-                  class="px-3 py-1 text-xs bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors"
+                  class="px-3 py-1 text-xs bg-green-500/10 text-green-400 rounded hover:bg-green-500/20 transition-colors"
                   onClick={handleSave}
                 >
                   Save
@@ -274,8 +316,19 @@ export default function PromptStudio() {
 
           {/* Preview */}
           <div class="flex-1 flex flex-col">
-            <div class="shrink-0 px-4 py-2 border-b border-border-base">
+            <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border-base">
               <span class="text-xs font-medium text-color-dimmed uppercase">Preview</span>
+              <Show when={renderedPreview().trim()}>
+                <button
+                  class="flex items-center gap-1 px-2 py-1 text-[10px] bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors"
+                  onClick={sendToAgent}
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Send
+                </button>
+              </Show>
             </div>
             <pre class="flex-1 p-4 text-xs text-color-secondary overflow-auto whitespace-pre-wrap">
               {renderedPreview() || "Write a prompt to see the preview..."}

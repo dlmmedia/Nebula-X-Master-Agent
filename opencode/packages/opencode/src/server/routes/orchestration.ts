@@ -9,6 +9,9 @@ import { PromptBuilder } from "../../orchestration/prompt-builder"
 import { GeminiService } from "../../orchestration/gemini"
 import { Agent } from "../../agent/agent"
 import { OrchestrationBridge } from "../../orchestration/bridge"
+import { Session } from "../../session"
+import { SessionPrompt } from "../../session/prompt"
+import { Identifier } from "../../id/id"
 
 export const OrchestrationRoutes = lazy(() =>
   new Hono()
@@ -344,8 +347,19 @@ export const OrchestrationRoutes = lazy(() =>
         },
       }),
       validator("param", z.object({ id: z.string() })),
+      validator(
+        "json",
+        z
+          .object({
+            sendToAgent: z.boolean().optional(),
+          })
+          .optional(),
+      ),
       async (c) => {
-        const run = await WorkflowEngine.run(c.req.valid("param").id)
+        const body = c.req.valid("json") ?? {}
+        const run = await WorkflowEngine.run(c.req.valid("param").id, {
+          sendToAgent: body.sendToAgent,
+        })
         return c.json(run)
       },
     )
@@ -689,6 +703,72 @@ export const OrchestrationRoutes = lazy(() =>
         const promptCount = PromptBuilder.list().length
         const categories = SkillRegistry.categories()
         return c.json({ geminiAvailable, skillCount, workflowCount, promptCount, categories })
+      },
+    )
+    // ─── Send to Agent ──────────────────────────────────────
+    .post(
+      "/send-to-agent",
+      describeRoute({
+        summary: "Send prompt to agent",
+        description: "Create a session (or use existing) and send a prompt to the agent for execution.",
+        operationId: "orchestration.sendToAgent",
+        responses: {
+          200: {
+            description: "Session and message created",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  z.object({
+                    sessionId: z.string(),
+                    messageId: z.string(),
+                  }),
+                ),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          prompt: z.string().min(1),
+          sessionId: z.string().optional(),
+          agent: z.string().optional(),
+          model: z
+            .object({
+              providerID: z.string(),
+              modelID: z.string(),
+            })
+            .optional(),
+        }),
+      ),
+      async (c) => {
+        const input = c.req.valid("json")
+
+        let sessionId = input.sessionId
+        if (!sessionId) {
+          const session = await Session.create({})
+          sessionId = session.id
+        }
+
+        const messageID = Identifier.ascending("message")
+        const agentName = input.agent ?? (await Agent.defaultAgent())
+
+        void SessionPrompt.prompt({
+          sessionID: sessionId,
+          messageID,
+          agent: agentName,
+          model: input.model,
+          parts: [
+            {
+              type: "text",
+              text: input.prompt,
+            },
+          ],
+        })
+
+        return c.json({ sessionId, messageId: messageID })
       },
     ),
 )

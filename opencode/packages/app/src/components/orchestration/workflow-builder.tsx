@@ -1,5 +1,9 @@
 import { createSignal, createResource, For, Show, createMemo } from "solid-js"
+import { useNavigate } from "@solidjs/router"
+import { base64Encode } from "@opencode-ai/util/encode"
 import { useOrchestration } from "@/context/orchestration"
+import { useServer } from "@/context/server"
+import { setSessionHandoff } from "@/pages/session"
 import type { WorkflowEntry, WorkflowStep, WorkflowTemplate } from "@/lib/orchestration-client"
 
 const STEP_COLORS: Record<string, string> = {
@@ -20,6 +24,8 @@ const STEP_ICONS: Record<string, string> = {
 
 export default function WorkflowBuilder() {
   const client = useOrchestration()
+  const navigate = useNavigate()
+  const server = useServer()
   const [activeWorkflow, setActiveWorkflow] = createSignal<WorkflowEntry | null>(null)
   const [editSteps, setEditSteps] = createSignal<WorkflowStep[]>([])
   const [showCreateDialog, setShowCreateDialog] = createSignal(false)
@@ -144,6 +150,44 @@ export default function WorkflowBuilder() {
     refetch()
   }
 
+  function sendResultsToAgent() {
+    const lastProject = server.projects.last()
+    if (!lastProject) {
+      alert("Please open a project first.")
+      return
+    }
+    const result = runResult()
+    const wf = activeWorkflow()
+    if (!result || !wf) return
+
+    let promptText = `## Workflow Results: ${wf.name}\n\n`
+    promptText += `Status: ${result.status}\n\n`
+
+    if (result.result) {
+      const stepResults = result.result as Record<string, any>
+      for (const [stepId, stepOutput] of Object.entries(stepResults)) {
+        const step = wf.definition.steps.find((s) => s.id === stepId)
+        const stepName = step?.name || stepId
+        promptText += `### Step: ${stepName}\n`
+        promptText += `${typeof stepOutput === "string" ? stepOutput : JSON.stringify(stepOutput, null, 2)}\n\n`
+      }
+    }
+
+    if (result.error) {
+      promptText += `### Error\n${result.error}\n\n`
+    }
+
+    promptText += `Please review these workflow results and take appropriate action based on the outputs above.`
+
+    const dir = base64Encode(lastProject)
+    setSessionHandoff(dir, {
+      prompt: promptText,
+      source: "orchestration",
+      autoSubmit: true,
+    })
+    navigate(`/${dir}/session`)
+  }
+
   return (
     <div class="flex h-full">
       {/* Workflow List */}
@@ -170,6 +214,12 @@ export default function WorkflowBuilder() {
           <Show when={workflows.loading}>
             <div class="flex justify-center py-4">
               <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
+            </div>
+          </Show>
+          <Show when={workflows.error}>
+            <div class="flex flex-col items-center py-4 gap-2">
+              <p class="text-xs text-red-400">Failed to load</p>
+              <button class="text-[10px] text-blue-400 hover:underline" onClick={() => refetch()}>Retry</button>
             </div>
           </Show>
           <For each={workflows()}>
@@ -302,7 +352,18 @@ export default function WorkflowBuilder() {
         {/* Run Result */}
         <Show when={runResult()}>
           <div class="shrink-0 border-t border-border-base p-4 max-h-48 overflow-auto">
-            <p class="text-xs font-medium text-color-dimmed uppercase mb-2">Run Result</p>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs font-medium text-color-dimmed uppercase">Run Result</p>
+              <button
+                class="flex items-center gap-1.5 px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                onClick={sendResultsToAgent}
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Send to Agent
+              </button>
+            </div>
             <div class={`text-xs px-3 py-2 rounded ${runResult()?.status === "completed" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
               Status: {runResult()?.status}
             </div>

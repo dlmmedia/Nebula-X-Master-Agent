@@ -1,9 +1,15 @@
 import { createSignal, For, Show } from "solid-js"
+import { useNavigate } from "@solidjs/router"
+import { base64Encode } from "@opencode-ai/util/encode"
 import { useOrchestration } from "@/context/orchestration"
+import { useServer } from "@/context/server"
+import { setSessionHandoff } from "@/pages/session"
 import type { ResearchResult } from "@/lib/orchestration-client"
 
 export default function ResearchPanel() {
   const client = useOrchestration()
+  const navigate = useNavigate()
+  const server = useServer()
   const [query, setQuery] = createSignal("")
   const [context, setContext] = createSignal("")
   const [loading, setLoading] = createSignal(false)
@@ -46,6 +52,47 @@ export default function ResearchPanel() {
     } finally {
       setImportingSkill(null)
     }
+  }
+
+  function sendResearchToAgent() {
+    const lastProject = server.projects.last()
+    if (!lastProject) {
+      alert("Please open a project first.")
+      return
+    }
+    const res = result()
+    if (!res) return
+
+    let promptText = `## Research Results\n\n`
+    promptText += `**Topic:** ${query()}\n\n`
+    promptText += `### Summary\n${res.summary}\n\n`
+
+    if (res.findings.length > 0) {
+      promptText += `### Key Findings\n`
+      for (const finding of res.findings) {
+        promptText += `- **${finding.title}**: ${finding.description}\n`
+        if (finding.source) promptText += `  Source: ${finding.source}\n`
+      }
+      promptText += `\n`
+    }
+
+    if (res.suggestedSkills.length > 0) {
+      promptText += `### Suggested Skills\n`
+      for (const skill of res.suggestedSkills) {
+        promptText += `- **${skill.name}**: ${skill.description}\n`
+      }
+      promptText += `\n`
+    }
+
+    promptText += `Please use these research findings to help complete the task at hand.`
+
+    const dir = base64Encode(lastProject)
+    setSessionHandoff(dir, {
+      prompt: promptText,
+      source: "orchestration",
+      autoSubmit: true,
+    })
+    navigate(`/${dir}/session`)
   }
 
   return (
@@ -127,6 +174,19 @@ export default function ResearchPanel() {
           <Show when={!loading() && result()}>
             {(res) => (
               <div class="space-y-6 max-w-3xl">
+                {/* Action Bar */}
+                <div class="flex items-center justify-end">
+                  <button
+                    class="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    onClick={sendResearchToAgent}
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Send to Agent
+                  </button>
+                </div>
+
                 {/* Summary */}
                 <div>
                   <h3 class="text-sm font-semibold text-color-primary mb-2">Summary</h3>

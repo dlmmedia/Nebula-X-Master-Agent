@@ -26,6 +26,12 @@ export default function AgentConfigurator() {
               <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
             </div>
           </Show>
+          <Show when={agents.error}>
+            <div class="flex flex-col items-center py-4 gap-2">
+              <p class="text-xs text-red-400">Failed to load agents</p>
+              <button class="text-[10px] text-blue-400 hover:underline" onClick={() => refetch()}>Retry</button>
+            </div>
+          </Show>
           <For each={agents()}>
             {(agent) => (
               <div

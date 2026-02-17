@@ -1,4 +1,5 @@
-import { createSignal, Show, Suspense, lazy } from "solid-js"
+import { createSignal, onMount, Show, Suspense, lazy, ErrorBoundary } from "solid-js"
+import { useSearchParams } from "@solidjs/router"
 import { OrchestrationProvider } from "@/context/orchestration"
 
 const SkillBrowser = lazy(() => import("@/components/orchestration/skill-browser"))
@@ -9,6 +10,8 @@ const ResearchPanel = lazy(() => import("@/components/orchestration/research-pan
 
 type Tab = "skills" | "workflows" | "prompts" | "agents" | "research"
 
+const VALID_TABS: Tab[] = ["skills", "workflows", "prompts", "agents", "research"]
+
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "skills", label: "Skills", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
   { id: "workflows", label: "Workflows", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
@@ -18,7 +21,20 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ]
 
 export default function OrchestrationPage() {
-  const [activeTab, setActiveTab] = createSignal<Tab>("skills")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = VALID_TABS.includes(searchParams.tab as Tab) ? (searchParams.tab as Tab) : "skills"
+  const [activeTab, setActiveTab] = createSignal<Tab>(initialTab)
+
+  function switchTab(tab: Tab) {
+    setActiveTab(tab)
+    setSearchParams({ tab })
+  }
+
+  onMount(() => {
+    if (searchParams.tab && VALID_TABS.includes(searchParams.tab as Tab)) {
+      setActiveTab(searchParams.tab as Tab)
+    }
+  })
 
   return (
     <OrchestrationProvider>
@@ -51,7 +67,7 @@ export default function OrchestrationPage() {
                     ? "bg-background-surface text-color-primary border-b-2 border-blue-500"
                     : "text-color-dimmed hover:text-color-secondary hover:bg-background-surface/50"
                 }`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => switchTab(tab.id)}
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={tab.icon} />
@@ -64,23 +80,25 @@ export default function OrchestrationPage() {
 
         {/* Tab Content */}
         <div class="flex-1 min-h-0 overflow-auto">
-          <Suspense fallback={<LoadingSpinner />}>
-            <Show when={activeTab() === "skills"}>
-              <SkillBrowser />
-            </Show>
-            <Show when={activeTab() === "workflows"}>
-              <WorkflowBuilder />
-            </Show>
-            <Show when={activeTab() === "prompts"}>
-              <PromptStudio />
-            </Show>
-            <Show when={activeTab() === "agents"}>
-              <AgentConfigurator />
-            </Show>
-            <Show when={activeTab() === "research"}>
-              <ResearchPanel />
-            </Show>
-          </Suspense>
+          <ErrorBoundary fallback={(err, reset) => <OrchestrationError error={err} reset={reset} tab={activeTab()} />}>
+            <Suspense fallback={<LoadingSpinner />}>
+              <Show when={activeTab() === "skills"}>
+                <SkillBrowser />
+              </Show>
+              <Show when={activeTab() === "workflows"}>
+                <WorkflowBuilder />
+              </Show>
+              <Show when={activeTab() === "prompts"}>
+                <PromptStudio />
+              </Show>
+              <Show when={activeTab() === "agents"}>
+                <AgentConfigurator />
+              </Show>
+              <Show when={activeTab() === "research"}>
+                <ResearchPanel />
+              </Show>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </OrchestrationProvider>
@@ -91,6 +109,32 @@ function LoadingSpinner() {
   return (
     <div class="flex items-center justify-center h-64">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    </div>
+  )
+}
+
+function OrchestrationError(props: { error: Error; reset: () => void; tab: string }) {
+  return (
+    <div class="flex flex-col items-center justify-center h-64 gap-4">
+      <div class="p-3 rounded-full bg-red-500/10">
+        <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+      </div>
+      <div class="text-center">
+        <p class="text-sm font-medium text-color-primary mb-1">
+          Failed to load {props.tab}
+        </p>
+        <p class="text-xs text-color-dimmed max-w-md">
+          {props.error?.message || "An unexpected error occurred. Make sure the server is running."}
+        </p>
+      </div>
+      <button
+        class="px-4 py-2 text-sm bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors"
+        onClick={props.reset}
+      >
+        Try Again
+      </button>
     </div>
   )
 }

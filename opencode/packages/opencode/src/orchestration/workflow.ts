@@ -4,6 +4,10 @@ import { eq, sql } from "drizzle-orm"
 import { Database } from "../storage/db"
 import { WorkflowDefinitionTable, WorkflowRunTable } from "./orchestration.sql"
 import { GeminiService } from "./gemini"
+import { Session } from "../session"
+import { SessionPrompt } from "../session/prompt"
+import { Agent } from "../agent/agent"
+import { Identifier } from "../id/id"
 import { Log } from "../util/log"
 
 export namespace WorkflowEngine {
@@ -174,7 +178,11 @@ export namespace WorkflowEngine {
     })
   }
 
-  export async function run(id: string): Promise<RunEntry> {
+  export interface RunOptions {
+    sendToAgent?: boolean
+  }
+
+  export async function run(id: string, options?: RunOptions): Promise<RunEntry> {
     const workflow = get(id)
     if (!workflow) throw new Error(`Workflow not found: ${id}`)
 
@@ -209,7 +217,15 @@ export namespace WorkflowEngine {
           .run()
       })
 
-      return getRun(runId)!
+      const runEntry = getRun(runId)!
+
+      if (options?.sendToAgent) {
+        void sendWorkflowResultsToAgent(workflow, result).catch((err) => {
+          log.error("failed to send workflow results to agent", { error: err })
+        })
+      }
+
+      return runEntry
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e)
 
@@ -226,6 +242,39 @@ export namespace WorkflowEngine {
 
       return getRun(runId)!
     }
+  }
+
+  async function sendWorkflowResultsToAgent(
+    workflow: WorkflowEntry,
+    results: Record<string, any>,
+  ): Promise<void> {
+    let promptText = `## Workflow Results: ${workflow.name}\n\n`
+    promptText += `${workflow.description}\n\n`
+
+    for (const [stepId, stepOutput] of Object.entries(results)) {
+      const step = workflow.definition.steps.find((s) => s.id === stepId)
+      const stepName = step?.name || stepId
+      promptText += `### Step: ${stepName} (${step?.type || "unknown"})\n`
+      promptText += `${typeof stepOutput === "string" ? stepOutput : JSON.stringify(stepOutput, null, 2)}\n\n`
+    }
+
+    promptText += `Please review these workflow results and take appropriate action.`
+
+    const session = await Session.create({})
+    const messageID = Identifier.ascending("message")
+    const agentName = await Agent.defaultAgent()
+
+    void SessionPrompt.prompt({
+      sessionID: session.id,
+      messageID,
+      agent: agentName,
+      parts: [{ type: "text", text: promptText }],
+    })
+
+    log.info("sent workflow results to agent", {
+      workflowId: workflow.id,
+      sessionId: session.id,
+    })
   }
 
   export function getRun(id: string): RunEntry | undefined {
