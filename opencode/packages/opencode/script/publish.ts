@@ -79,14 +79,27 @@ for (const name of names) {
 
 await $`cd ./dist/nebula-x && bun pm pack`
 
-// publish non-baseline packages first, then baseline, then main package
 const nonBaseline = names.filter((n) => !n.includes("baseline"))
 const baseline = names.filter((n) => n.includes("baseline"))
-for (const name of [...nonBaseline, ...baseline]) {
+
+for (const name of nonBaseline) {
   await publish(name, `./dist/${name}`)
   await Bun.sleep(5000)
 }
+
 await publish("nebula-x", "./dist/nebula-x")
+
+const failed: string[] = []
+for (const name of baseline) {
+  try {
+    await publish(name, `./dist/${name}`)
+    await Bun.sleep(5000)
+  } catch (e: any) {
+    console.log(`WARNING: ${name} failed to publish (non-fatal):`, e?.message || e)
+    failed.push(name)
+  }
+}
+if (failed.length) console.log(`WARNING: ${failed.length} baseline packages failed to publish: ${failed.join(", ")}`)
 
 // Docker image
 const image = "ghcr.io/dlmmedia/nebula-x"
