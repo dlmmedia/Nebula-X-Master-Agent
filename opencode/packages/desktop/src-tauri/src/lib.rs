@@ -138,7 +138,7 @@ async fn await_initialization(
     future::join(state.status.clone(), events)
         .await
         .0
-        .map_err(|_| "Failed to get server status".to_string())?
+        .map_err(|_| "Failed to get server status: the server initialization task was cancelled or dropped. Check logs for details.".to_string())?
 }
 
 #[tauri::command]
@@ -610,14 +610,15 @@ async fn initialize(app: AppHandle) {
                     let app = app.clone();
                     Some(
                         async move {
-                            let res = timeout(Duration::from_secs(30), health_check.0).await;
+                            let timeout_secs = if cfg!(windows) { 60 } else { 30 };
+                            let res = timeout(Duration::from_secs(timeout_secs), health_check.0).await;
                             let err = match res {
                                 Ok(Ok(Ok(()))) => None,
                                 Ok(Ok(Err(e))) => Some(e),
                                 Ok(Err(e)) => Some(format!("Health check task failed: {e}")),
                                 Err(_) => Some(format!(
-                                    "Health check timed out after 30s (url={})",
-                                    url
+                                    "Health check timed out after {}s (url={})",
+                                    timeout_secs, url
                                 )),
                             };
 
@@ -647,6 +648,12 @@ async fn initialize(app: AppHandle) {
                         url: url.to_string(),
                         password: None,
                     }));
+                    None
+                }
+                ServerConnection::SpawnFailed { error } => {
+                    let _ = server_ready_tx.send(Err(format!(
+                        "Failed to start Nebula X: {error}"
+                    )));
                     None
                 }
             };
@@ -727,6 +734,9 @@ enum ServerConnection {
         child: CommandChild,
         health_check: server::HealthCheck,
     },
+    SpawnFailed {
+        error: String,
+    },
 }
 
 async fn setup_server_connection(app: AppHandle) -> ServerConnection {
@@ -754,14 +764,17 @@ async fn setup_server_connection(app: AppHandle) -> ServerConnection {
     let password = uuid::Uuid::new_v4().to_string();
 
     tracing::info!("Spawning new local server");
-    let (child, health_check) =
-        server::spawn_local_server(app, hostname.to_string(), local_port, password.clone());
-
-    ServerConnection::CLI {
-        url: local_url,
-        password: Some(password),
-        child,
-        health_check,
+    match server::spawn_local_server(app, hostname.to_string(), local_port, password.clone()) {
+        Ok((child, health_check)) => ServerConnection::CLI {
+            url: local_url,
+            password: Some(password),
+            child,
+            health_check,
+        },
+        Err(error) => {
+            tracing::error!(%error, "Failed to spawn local server");
+            ServerConnection::SpawnFailed { error }
+        }
     }
 }
 

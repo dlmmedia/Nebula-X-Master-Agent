@@ -430,7 +430,7 @@ pub fn serve(
     hostname: &str,
     port: u32,
     password: &str,
-) -> (CommandChild, oneshot::Receiver<TerminatedPayload>) {
+) -> Result<(CommandChild, oneshot::Receiver<TerminatedPayload>), String> {
     let (exit_tx, exit_rx) = oneshot::channel::<TerminatedPayload>();
 
     let sidecar_path = get_sidecar_path(app);
@@ -440,6 +440,15 @@ pub fn serve(
         exists = sidecar_path.exists(),
         "Spawning sidecar"
     );
+
+    if !sidecar_path.exists() {
+        let msg = format!(
+            "Nebula X CLI sidecar not found at '{}'. The binary may have been removed by antivirus software. Try reinstalling or adding an exception.",
+            sidecar_path.display()
+        );
+        tracing::error!("{}", msg);
+        return Err(msg);
+    }
 
     let envs = [
         ("OPENCODE_SERVER_USERNAME", "opencode".to_string()),
@@ -451,7 +460,14 @@ pub fn serve(
         format!("--print-logs --log-level WARN serve --hostname {hostname} --port {port}").as_str(),
         &envs,
     )
-    .expect("Failed to spawn Nebula X sidecar");
+    .map_err(|e| {
+        let msg = format!(
+            "Failed to spawn Nebula X sidecar at '{}': {}. On Windows, check that Windows Defender or antivirus is not blocking the binary.",
+            sidecar_path.display(), e
+        );
+        tracing::error!("{}", msg);
+        msg
+    })?;
 
     let mut exit_tx = Some(exit_tx);
     tokio::spawn(
@@ -487,7 +503,7 @@ pub fn serve(
             .instrument(tracing::info_span!("sidecar")),
     );
 
-    (child, exit_rx)
+    Ok((child, exit_rx))
 }
 
 pub mod sqlite_migration {
