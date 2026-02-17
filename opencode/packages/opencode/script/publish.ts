@@ -45,33 +45,39 @@ await Bun.file(`./dist/nebula-x/package.json`).write(
   ),
 )
 
-const tasks = Object.entries(binaries).map(async ([name]) => {
+async function publish(name: string, cwd: string) {
+  const maxRetries = 3
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(cwd)
+      return
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes("You cannot publish over the previously published versions")) {
+        console.log(`${name} already published, skipping`)
+        return
+      }
+      if (msg.includes("429") && attempt < maxRetries) {
+        const delay = attempt * 30
+        console.log(`${name} rate limited, retrying in ${delay}s (attempt ${attempt}/${maxRetries})`)
+        await Bun.sleep(delay * 1000)
+        continue
+      }
+      throw e
+    }
+  }
+}
+
+for (const [name] of Object.entries(binaries)) {
   if (process.platform !== "win32") {
     await $`chmod -R 755 .`.cwd(`./dist/${name}`)
   }
   await $`bun pm pack`.cwd(`./dist/${name}`)
-  try {
-    await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${name}`)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes("You cannot publish over the previously published versions")) {
-      console.log(`${name} already published, skipping`)
-    } else {
-      throw e
-    }
-  }
-})
-await Promise.all(tasks)
-try {
-  await $`cd ./dist/nebula-x && bun pm pack && npm publish *.tgz --access public --tag ${Script.channel}`
-} catch (e) {
-  const msg = e instanceof Error ? e.message : String(e)
-  if (msg.includes("You cannot publish over the previously published versions")) {
-    console.log("nebula-x already published, skipping")
-  } else {
-    throw e
-  }
+  await publish(name, `./dist/${name}`)
 }
+
+await $`cd ./dist/nebula-x && bun pm pack`
+await publish("nebula-x", "./dist/nebula-x")
 
 // Docker image
 const image = "ghcr.io/dlmmedia/nebula-x"
