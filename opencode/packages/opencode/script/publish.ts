@@ -46,10 +46,11 @@ await Bun.file(`./dist/nebula-x/package.json`).write(
 )
 
 async function publish(name: string, cwd: string) {
-  const maxRetries = 3
+  const maxRetries = 5
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(cwd)
+      console.log(`+ ${name} published successfully`)
       return
     } catch (e: any) {
       const msg = [e?.message, e?.stderr, String(e)].join("\n")
@@ -58,7 +59,7 @@ async function publish(name: string, cwd: string) {
         return
       }
       if (msg.includes("429") && attempt < maxRetries) {
-        const delay = attempt * 60
+        const delay = attempt * 90
         console.log(`${name} rate limited, retrying in ${delay}s (attempt ${attempt}/${maxRetries})`)
         await Bun.sleep(delay * 1000)
         continue
@@ -68,15 +69,23 @@ async function publish(name: string, cwd: string) {
   }
 }
 
-for (const [name] of Object.entries(binaries)) {
+const names = Object.keys(binaries)
+for (const name of names) {
   if (process.platform !== "win32") {
     await $`chmod -R 755 .`.cwd(`./dist/${name}`)
   }
   await $`bun pm pack`.cwd(`./dist/${name}`)
-  await publish(name, `./dist/${name}`)
 }
 
 await $`cd ./dist/nebula-x && bun pm pack`
+
+// publish non-baseline packages first, then baseline, then main package
+const nonBaseline = names.filter((n) => !n.includes("baseline"))
+const baseline = names.filter((n) => n.includes("baseline"))
+for (const name of [...nonBaseline, ...baseline]) {
+  await publish(name, `./dist/${name}`)
+  await Bun.sleep(5000)
+}
 await publish("nebula-x", "./dist/nebula-x")
 
 // Docker image
