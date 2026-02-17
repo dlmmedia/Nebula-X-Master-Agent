@@ -1,0 +1,41 @@
+# ============================================================================
+# Nebula X — Docker build context exclusions
+# Used by Railway deployment (deploy/railway/Dockerfile)
+# ============================================================================
+
+# Git metadata
+.git
+.github
+
+# Website build artifacts (only need public/ assets for branding)
+website/node_modules
+website/.next
+
+# Pre-existing build artifacts
+opencode/dist
+**/node_modules
+
+# Desktop native targets
+opencode/packages/desktop/src-tauri/target
+
+# IDE and OS files
+.vscode
+.idea
+.codex
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Development artifacts
+.turbo
+.sst
+.worktrees
+playground
+tmp
+logs
+.direnv
+.serena
+
+# Not needed for build
+nebula-x-assects

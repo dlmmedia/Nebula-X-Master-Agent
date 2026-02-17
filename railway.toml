@@ -1,0 +1,22 @@
+# ============================================================================
+# Nebula X — Railway Configuration
+# ============================================================================
+
+[build]
+# Use the Dockerfile from the deploy/railway directory
+dockerfilePath = "deploy/railway/Dockerfile"
+
+# Build context is the project root (needs access to opencode/ and website/)
+watchPatterns = ["deploy/railway/**", "opencode/**"]
+
+[deploy]
+# Health check endpoint
+healthcheckPath = "/doc"
+healthcheckTimeout = 120
+
+# Restart policy
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+# Allow 60 seconds for graceful shutdown
+gracePeriodSeconds = 60
