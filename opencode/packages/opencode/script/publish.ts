@@ -50,10 +50,28 @@ const tasks = Object.entries(binaries).map(async ([name]) => {
     await $`chmod -R 755 .`.cwd(`./dist/${name}`)
   }
   await $`bun pm pack`.cwd(`./dist/${name}`)
-  await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${name}`)
+  try {
+    await $`npm publish *.tgz --access public --tag ${Script.channel}`.cwd(`./dist/${name}`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes("You cannot publish over the previously published versions")) {
+      console.log(`${name} already published, skipping`)
+    } else {
+      throw e
+    }
+  }
 })
 await Promise.all(tasks)
-await $`cd ./dist/nebula-x && bun pm pack && npm publish *.tgz --access public --tag ${Script.channel}`
+try {
+  await $`cd ./dist/nebula-x && bun pm pack && npm publish *.tgz --access public --tag ${Script.channel}`
+} catch (e) {
+  const msg = e instanceof Error ? e.message : String(e)
+  if (msg.includes("You cannot publish over the previously published versions")) {
+    console.log("nebula-x already published, skipping")
+  } else {
+    throw e
+  }
+}
 
 // Docker image
 const image = "ghcr.io/dlmmedia/nebula-x"
