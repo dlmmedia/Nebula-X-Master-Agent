@@ -86,12 +86,11 @@ fn get_cli_install_path() -> Option<std::path::PathBuf> {
 }
 
 pub fn get_sidecar_path(app: &tauri::AppHandle) -> std::path::PathBuf {
-    // Get binary with symlinks support
     tauri::process::current_binary(&app.env())
         .expect("Failed to get current binary")
         .parent()
         .expect("Failed to get parent dir")
-        .join("nebula-x-cli")
+        .join(if cfg!(windows) { "nebula-x-cli.exe" } else { "nebula-x-cli" })
 }
 
 fn is_cli_installed() -> bool {
