@@ -17,7 +17,10 @@ ts-dist
 /result
 refs
 Session.vim
-opencode.json
+# User config file (only at root of project, not theme files)
+/opencode.json
+**/opencode.json
+!**/theme/opencode.json
 a.out
 target
 .scripts
