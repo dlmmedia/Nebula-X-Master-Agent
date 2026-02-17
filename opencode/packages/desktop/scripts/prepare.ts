@@ -13,7 +13,7 @@ const sidecarConfig = getCurrentSidecar()
 
 // CLI artifacts are downloaded by the GitHub Actions workflow into ../opencode/dist
 // Try the workflow artifact path first, then fall back to gh run download
-const artifactPath = `../opencode/dist/${sidecarConfig.ocBinary}/bin/opencode`
+const artifactPath = `../opencode/dist/${sidecarConfig.ocBinary}/bin/nebula-x`
 const artifactFile = Bun.file(windowsify(artifactPath))
 
 if (await artifactFile.exists()) {
@@ -24,5 +24,5 @@ if (await artifactFile.exists()) {
   const dir = "src-tauri/target/opencode-binaries"
   await $`mkdir -p ${dir}`
   await $`gh run download ${Bun.env.GITHUB_RUN_ID} -n opencode-cli`.cwd(dir)
-  await copyBinaryToSidecarFolder(windowsify(`${dir}/${sidecarConfig.ocBinary}/bin/opencode`))
+  await copyBinaryToSidecarFolder(windowsify(`${dir}/${sidecarConfig.ocBinary}/bin/nebula-x`))
 }

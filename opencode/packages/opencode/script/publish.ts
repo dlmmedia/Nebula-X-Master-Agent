@@ -69,10 +69,10 @@ try {
 // Package registries (only for non-preview releases)
 if (!Script.preview) {
   // Calculate SHA values for release assets
-  const arm64Sha = await $`sha256sum ./dist/opencode-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
-  const x64Sha = await $`sha256sum ./dist/opencode-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
-  const macX64Sha = await $`sha256sum ./dist/opencode-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
-  const macArm64Sha = await $`sha256sum ./dist/opencode-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const arm64Sha = await $`sha256sum ./dist/nebula-x-linux-arm64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const x64Sha = await $`sha256sum ./dist/nebula-x-linux-x64.tar.gz | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const macX64Sha = await $`sha256sum ./dist/nebula-x-darwin-x64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
+  const macArm64Sha = await $`sha256sum ./dist/nebula-x-darwin-arm64.zip | cut -d' ' -f1`.text().then((x) => x.trim()).catch(() => "SKIP")
 
   // Homebrew formula
   if (macX64Sha !== "SKIP" && macArm64Sha !== "SKIP") {
@@ -87,36 +87,36 @@ if (!Script.preview) {
       "",
       "  on_macos do",
       "    if Hardware::CPU.intel?",
-      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-darwin-x64.zip"`,
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/nebula-x-darwin-x64.zip"`,
       `      sha256 "${macX64Sha}"`,
       "",
       "      def install",
-      '        bin.install "opencode" => "nebula-x"',
+      '        bin.install "nebula-x"',
       "      end",
       "    end",
       "    if Hardware::CPU.arm?",
-      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-darwin-arm64.zip"`,
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/nebula-x-darwin-arm64.zip"`,
       `      sha256 "${macArm64Sha}"`,
       "",
       "      def install",
-      '        bin.install "opencode" => "nebula-x"',
+      '        bin.install "nebula-x"',
       "      end",
       "    end",
       "  end",
       "",
       "  on_linux do",
       "    if Hardware::CPU.intel? and Hardware::CPU.is_64_bit?",
-      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-linux-x64.tar.gz"`,
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/nebula-x-linux-x64.tar.gz"`,
       `      sha256 "${x64Sha}"`,
       "      def install",
-      '        bin.install "opencode" => "nebula-x"',
+      '        bin.install "nebula-x"',
       "      end",
       "    end",
       "    if Hardware::CPU.arm? and Hardware::CPU.is_64_bit?",
-      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/opencode-linux-arm64.tar.gz"`,
+      `      url "https://github.com/dlmmedia/Nebula-X-Master-Agent/releases/download/v${Script.version}/nebula-x-linux-arm64.tar.gz"`,
       `      sha256 "${arm64Sha}"`,
       "      def install",
-      '        bin.install "opencode" => "nebula-x"',
+      '        bin.install "nebula-x"',
       "      end",
       "    end",
       "  end",
