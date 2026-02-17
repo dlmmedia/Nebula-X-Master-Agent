@@ -22,6 +22,16 @@ export namespace GeminiService {
       // Auth not configured
     }
 
+    // Fallback to build-time embedded key (Nebula X default)
+    declare const NEBULA_X_GEMINI_API_KEY: string
+    try {
+      if (typeof NEBULA_X_GEMINI_API_KEY === "string" && NEBULA_X_GEMINI_API_KEY.length > 0) {
+        return NEBULA_X_GEMINI_API_KEY
+      }
+    } catch {
+      // Not available (dev mode)
+    }
+
     return undefined
   }
 

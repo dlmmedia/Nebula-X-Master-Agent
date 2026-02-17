@@ -187,6 +187,7 @@ for (const item of targets) {
       OPENCODE_WORKER_PATH: workerPath,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
+      NEBULA_X_GEMINI_API_KEY: process.env.GEMINI_API_KEY ? `'${process.env.GEMINI_API_KEY}'` : "''",
     },
   })
 
